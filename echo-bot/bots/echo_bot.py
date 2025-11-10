@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 import ast
+import asyncio
 import operator
 import re
 from datetime import datetime
@@ -26,9 +27,9 @@ class EchoBot(ActivityHandler):
         ast.USub: operator.neg,
     }
 
-    def __init__(self, ai_client=None):
+    def __init__(self, language_client=None):
         super().__init__()
-        self.ai_client = ai_client
+        self.language_client = language_client
         self.capabilities = [
             "`help` – list the bot's capabilities.",
             "`about` – describe the project and how to extend it.",
@@ -135,14 +136,53 @@ class EchoBot(ActivityHandler):
 
     async def nlu_dispatch(self, text: str) -> Optional[str]:
         """
-        Hook for future NLU or LLM integrations. By default it optionally calls the provided ai_client.
+        Hook for Azure Language Service (or other NLU) integrations.
+        Returns a sentiment + key phrase report when a language_client is configured.
         """
-        if not self.ai_client:
+        if not self.language_client:
             return None
+
         try:
-            return await self.ai_client.generate_response(text)
+            sentiment = await self._run_in_executor(
+                lambda: self.language_client.analyze_sentiment([text])[0]
+            )
+            print(f"Sentiment analysis result: {sentiment}")
         except Exception:
             return None
+
+        if getattr(sentiment, "is_error", False):
+            return None
+
+        key_phrases = None
+        try:
+            key_result = await self._run_in_executor(
+                lambda: self.language_client.extract_key_phrases([text])[0]
+            )
+            print(f"Key phrase extraction result: {key_result}")
+            if not getattr(key_result, "is_error", False):
+                key_phrases = list(getattr(key_result, "key_phrases", []))
+                print(f"Extracted key phrases: {key_phrases}")
+        except Exception:
+            key_phrases = None
+
+        confidence = sentiment.confidence_scores
+        confidence_text = (
+            f"{confidence.positive:.2f} positive / "
+            f"{confidence.neutral:.2f} neutral / "
+            f"{confidence.negative:.2f} negative"
+        )
+        key_phrase_text = ", ".join(key_phrases) if key_phrases else "n/a"
+
+        return (
+            "Azure Language Service insight:\n"
+            f"- Overall sentiment: {sentiment.sentiment}\n"
+            f"- Confidence: {confidence_text}\n"
+            f"- Key phrases: {key_phrase_text}"
+        )
+
+    async def _run_in_executor(self, func):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, func)
 
     def _fallback_message(self, text: str) -> str:
         reversed_text = text[::-1]

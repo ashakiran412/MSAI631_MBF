@@ -39,6 +39,15 @@ Connect via the Bot Framework Emulator and try the following prompts:
 
 > The bot surface is emulator-only. Browsing to `http://localhost:3978/` returns a 404 hint that points you back to `/api/messages`.
 
+### Azure Language Service integration
+
+Set the following environment variables to enable the optional Azure Language Service hook used by `nlu_dispatch()`:
+
+- `MicrosoftAIServiceEndpoint`
+- `MicrosoftAIServiceKey`
+
+When present, Azure Text Analytics analyzes any text that does not match a built-in command and replies with sentiment + key phrase insight instead of the simple reversal fallback.
+
 ## Deploy the bot to Azure
 
 To learn more about deploying a bot to Azure, see [Deploy your bot to Azure](https://aka.ms/azuredeployment) for a complete list of deployment instructions.
